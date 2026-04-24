@@ -15,8 +15,31 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
     
     public bool IsReadOnly => false;
 
-    public ICollection<TKey> Keys => InOrder().Select(x => x.Key).ToList();
-    public ICollection<TValue> Values => InOrder().Select(x => x.Value).ToList();
+    public ICollection<TKey> Keys
+    {
+        get
+        {
+            List<TKey> keys = new List<TKey>(Count);
+            foreach (var entry in InOrder())
+            {
+                keys.Add(entry.Key);
+            }
+            return keys;
+        }
+    }
+
+    public ICollection<TValue> Values
+    {
+        get
+        {
+            List<TValue> values = new List<TValue>(Count);
+            foreach (var entry in InOrder())
+            {
+                values.Add(entry.Value);
+            }
+            return values;
+        }
+    }
     
     
     public virtual void Add(TKey key, TValue value)
@@ -265,18 +288,46 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
     }
     #endregion
     
-    public IEnumerable<TreeEntry<TKey, TValue>> InOrder() => new TreeIterator(Root, TraversalStrategy.InOrder);
-    public IEnumerable<TreeEntry<TKey, TValue>> PreOrder() => new TreeIterator(Root, TraversalStrategy.PreOrder);
-    public IEnumerable<TreeEntry<TKey, TValue>> PostOrder() => new TreeIterator(Root, TraversalStrategy.PostOrder);
-    public IEnumerable<TreeEntry<TKey, TValue>> InOrderReverse() => new TreeIterator(Root, TraversalStrategy.InOrderReverse);
-    public IEnumerable<TreeEntry<TKey, TValue>> PreOrderReverse() => new TreeIterator(Root, TraversalStrategy.PreOrderReverse);
-    public IEnumerable<TreeEntry<TKey, TValue>> PostOrderReverse() => new TreeIterator(Root, TraversalStrategy.PostOrderReverse);
+    public TreeIterator InOrder() => new TreeIterator(Root, TraversalStrategy.InOrder);
+    public TreeIterator PreOrder() => new TreeIterator(Root, TraversalStrategy.PreOrder);
+    public TreeIterator PostOrder() => new TreeIterator(Root, TraversalStrategy.PostOrder);
+    public TreeIterator InOrderReverse() => new TreeIterator(Root, TraversalStrategy.InOrderReverse);
+    public TreeIterator PreOrderReverse() => new TreeIterator(Root, TraversalStrategy.PreOrderReverse);
+    public TreeIterator PostOrderReverse() => new TreeIterator(Root, TraversalStrategy.PostOrderReverse);
+
+    IEnumerable<TreeEntry<TKey, TValue>> ITree<TKey, TValue>.InOrder() => InOrder();
+    IEnumerable<TreeEntry<TKey, TValue>> ITree<TKey, TValue>.PreOrder() => PreOrder();
+    IEnumerable<TreeEntry<TKey, TValue>> ITree<TKey, TValue>.PostOrder() => PostOrder();
+    IEnumerable<TreeEntry<TKey, TValue>> ITree<TKey, TValue>.InOrderReverse() => InOrderReverse();
+    IEnumerable<TreeEntry<TKey, TValue>> ITree<TKey, TValue>.PreOrderReverse() => PreOrderReverse();
+    IEnumerable<TreeEntry<TKey, TValue>> ITree<TKey, TValue>.PostOrderReverse() => PostOrderReverse();
     
+    /// <summary>
+    /// Внутренний класс-итератор для KeyValuePair.
+    /// Реализует паттерн Iterator вручную, без yield return (ban).
+    /// </summary>
+    private struct TreePairIterator : IEnumerator<KeyValuePair<TKey, TValue>>
+    {
+        private TreeIterator _inner;
+
+        public TreePairIterator(TNode? root)
+        {
+            _inner = new TreeIterator(root, TraversalStrategy.InOrder);
+        }
+
+        public KeyValuePair<TKey, TValue> Current => new(_inner.Current.Key, _inner.Current.Value);
+        object IEnumerator.Current => Current;
+
+        public bool MoveNext() => _inner.MoveNext();
+        public void Reset() => _inner.Reset();
+        public void Dispose() => _inner.Dispose();
+    }
+
     /// <summary>
     /// Внутренний класс-итератор. 
     /// Реализует паттерн Iterator вручную, без yield return (ban).
     /// </summary>
-    private struct TreeIterator : 
+    public struct TreeIterator :
         IEnumerable<TreeEntry<TKey, TValue>>,
         IEnumerator<TreeEntry<TKey, TValue>>
     {
@@ -416,22 +467,21 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
     }
     
     
-    private enum TraversalStrategy { InOrder, PreOrder, PostOrder, InOrderReverse, PreOrderReverse, PostOrderReverse }
+    public enum TraversalStrategy { InOrder, PreOrder, PostOrder, InOrderReverse, PreOrderReverse, PostOrderReverse }
     
-    public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
-    {
-        foreach (var entry in InOrder())
-        {
-            yield return new KeyValuePair<TKey, TValue>(entry.Key, entry.Value);
-        }
-    }
+    public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() => new TreePairIterator(Root);
     
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
 
     public void Add(KeyValuePair<TKey, TValue> item) => Add(item.Key, item.Value);
     public void Clear() { Root = null; Count = 0; }
-    public bool Contains(KeyValuePair<TKey, TValue> item) => ContainsKey(item.Key);
+    public bool Contains(KeyValuePair<TKey, TValue> item)
+    {
+        TNode? node = FindNode(item.Key);
+        if (node == null) return false;
+        return EqualityComparer<TValue>.Default.Equals(node.Value, item.Value);
+    }
     public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex) => throw new NotImplementedException();
     public bool Remove(KeyValuePair<TKey, TValue> item) => Remove(item.Key);
 }
